@@ -1,64 +1,71 @@
-from django.shortcuts import render
-
-# Create your views here.
-from django.shortcuts import render
-from .forms import SignUpForm
-from django.contrib.auth import get_user_model
-from django.contrib.auth import authenticate, login, logout
-from django.http import HttpResponseRedirect, HttpResponse
+from django.shortcuts import render, redirect
 from django.urls import reverse
+from django.contrib.auth import get_user_model
+from django.contrib.auth import authenticate, login
+from django.http import HttpResponseRedirect
+from .forms import LoginForm, RegistrationForm
+from django.contrib.auth.decorators import login_required
+from .models import Room, Message
+from django.contrib.auth import get_user_model
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.models import User
+from.forms import SignUpForm
+from .models import Profile
+
+
+User = get_user_model()
 
 
 
+@login_required(login_url='login')
+def rooms(request):
+    rooms = Room.objects.all()
+    return render(request, "rooms.html", {"rooms": rooms})
 
-# Create your views here.
+@login_required(login_url='login')
+def room(request, slug):
+    try:
+        room_instance = Room.objects.filter(slug=slug).first()
+        if room_instance is None:
+            raise Room.DoesNotExist("Room does not exist with the specified slug.")
+        room_name = room_instance.name
+        messages = Message.objects.filter(room=room_instance)
+        users = User.objects.exclude(username=request.user.username)
+        return render(request, "room.html", {"room_name": room_name, "slug": slug, "messages": messages})
+    except Room.DoesNotExist:
+        # Handle the case where no room exists with the specified slug
+        return render(request, "404.html", status=404)
+    except Exception as e:
+        # Handle any other unexpected errors gracefully
+        return render(request, "error.html", {"error_message": str(e)}, status=500)
 
-'''User = get_user_model()
+def signupPage(request):
+    if request.method == 'POST':
+        form = SignUpForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('login')  # Redirect to login page after successful registration
+    else:
+        form = SignUpForm()
+    return render(request, 'signup.html', {'form': form})
 
+
+# views.py
+
+
+User = get_user_model()
 
 def register(request):
     if request.method == 'POST':
         form = SignUpForm(request.POST)
-
         if form.is_valid():
             new_user = form.save()
             new_user = authenticate(username=form.cleaned_data['username'],
                                     password=form.cleaned_data['password1'],
                                     )
             login(request, new_user)
-
-            return HttpResponseRedirect(reverse('home'))
-
+            return HttpResponseRedirect(reverse('rooms'))  # Redirect to rooms page after successful registration
     else:
         form = SignUpForm()
-
-    return render(request, 'accounts/register.html', {'form': form})'''
-
-
-def loginView(request):
-    if request.user.is_authenticated:
-        return HttpResponseRedirect(reverse('home'))
-
-    if request.method == 'POST':
-        username = request.POST.get('username')
-        password = request.POST.get('password')
-
-        user = authenticate(request, username=username, password=password)
-
-        if user:
-            if user.is_active:
-                login(request, user)
-                return HttpResponseRedirect(reverse('home'))
-            else:
-                return HttpResponse("Account Not Active")
-        else:
-            context = {'notfound': True}
-            print(
-                f"NO ACCOUNT FOUND WITH USERNAME {username} AND PASSWORD {password}")
-            print(context)
-            return render(request, 'accounts/login.html', context)
-
-    else:
-        return render(request, 'accounts/login.html')
-
+    return render(request, 'registration/register.html', {'form': form})
 
